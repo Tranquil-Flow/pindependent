@@ -13,8 +13,6 @@ contract DeFiModule is AxelarExecutable {
     
     string filecoinCID; // The current frontends CID
 
-    error NotEnoughValueForGas();
-
     // https://docs.axelar.dev/resources/mainnet
     // EDIT
     constructor (
@@ -48,28 +46,29 @@ contract DeFiModule is AxelarExecutable {
         string calldata sourceAddress,
         bytes calldata payload
     ) internal override {
-        address pinners = abi.decode(payload, (address[]));
-        calculatePayPerPinner();
-        payPinners();
+        uint totalBalance = address(this).balance;
+        if (totalBalance == 0)  revert NoFeesToDistribute();
+
+        address[] memory pinners = abi.decode(payload, (address[]));
+        uint amountPerPinner = totalBalance / pinners.length;
+
+        for (uint i = 0; i < pinners.length; i++) {
+            (bool success, ) = payable(pinners[i]).call{value: amountPerPinner}("");
+            require(success, "Transfer failed");
+        }
     }
 
-    function calculatePayPerPinner() internal pure {
+    function addFees() external payable {}
 
-    }
-
-    function payPinners() internal {
-
-    }
-
-
-    // admin functions
-
-    function addFees() external {
-
-    }
-
-    function changeCID(string _filecoinCID) external {
+    // admin function
+    function changeCID(string calldata _filecoinCID) external {
         filecoinCID = _filecoinCID;
+    }
+
+    error NotEnoughValueForGas();
+    error NoFeesToDistribute();
+    
+    receive() external payable {
     }
 
 }
