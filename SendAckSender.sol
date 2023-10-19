@@ -12,7 +12,7 @@ contract SendAckSender is AxelarExecutable {
 
     error NotEnoughValueForGas();
 
-    event ContractCallSent(string destinationChain, string contractAddress, bytes payload, uint256 nonce);
+    event ContractCallSent(string destinationChain, string contractAddress, string payload, uint256 nonce);
     event FalseAcknowledgment(string destinationChain, string contractAddress, uint256 nonce);
 
     uint256 public nonce;
@@ -37,7 +37,7 @@ contract SendAckSender is AxelarExecutable {
     function sendContractCall(
         string calldata destinationChain,
         string calldata contractAddress,
-        bytes calldata payload
+        string calldata payload
     ) external payable {
         uint256 nonce_ = nonce;
         bytes memory modifiedPayload = abi.encode(nonce_, payload);
@@ -74,6 +74,7 @@ contract SendAckSender is AxelarExecutable {
         destination[nonce_] = 0;
     }
 }
+
 
 contract DeFiModule {
 
