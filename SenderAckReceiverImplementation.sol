@@ -24,3 +24,28 @@ contract SendAckReceiverImplementation is SendAckReceiver {
         messages.push(message);
     }
 }
+
+contract fvmContract {
+
+    mapping(string => address) pinnerList;
+
+    // Receive request to get list of pinners for a cid and return this value
+    function _execute(
+        string calldata sourceChain,
+        string calldata sourceAddress,
+        bytes calldata payload
+        ) internal override {
+        string cid = abi.decode(payload, (string));
+        address[] pinners = viewPinnerList(cid);
+        gateway.callContract(sourceChain, sourceAddress, abi.encode(pinners));
+    }
+
+    function viewPinnerList() external returns (address[]) {
+
+    }
+
+    function submitCID(string cid) external {
+        //pinnerList
+    }
+
+}
