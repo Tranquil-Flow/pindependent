@@ -6,17 +6,7 @@ import { IAxelarGateway } from '@axelar-network/axelar-gmp-sdk-solidity/contract
 import { IAxelarGasService } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGasService.sol';
 import { StringToAddress, AddressToString } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/libs/AddressString.sol';
 
-contract SendAckSender is AxelarExecutable {
-
-
-
-
-
-
-}
-
-
-contract DeFiModule {
+contract DeFiModule is AxelarExecutable {
     using StringToAddress for string;
     using AddressToString for address;
     IAxelarGasService public immutable gasService;
