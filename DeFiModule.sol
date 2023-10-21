@@ -6,10 +6,12 @@ import {IAxelarGasService} from "@axelar-network/axelar-gmp-sdk-solidity/contrac
 
 contract DeFiModule is AxelarExecutable {
     IAxelarGasService public immutable gasService;
+
     address[] public pinners;
+    string filecoinCID;
+
     string destinationChain;
     string destinationAddress;
-    string filecoinCID = "meow";    // EDIT remove init
 
     error NotEnoughValueForGas();
 
@@ -23,9 +25,9 @@ contract DeFiModule is AxelarExecutable {
         destinationAddress = "0x1A8D7458E7dCB408611081D99D3c25324745212C";  // EDIT mainnet deployment
     }
 
-    function sendMessage() external payable {
+    function sendMessage(string calldata cid) external payable {
         if (msg.value == 0)  revert NotEnoughValueForGas();
-        bytes memory payload = abi.encode(filecoinCID);
+        bytes memory payload = abi.encode(cid);
 
         gasService.payNativeGasForContractCall{value: msg.value} (
             address(this),
