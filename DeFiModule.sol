@@ -1,74 +1,60 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
 
-import { AxelarExecutable } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/executable/AxelarExecutable.sol';
-import { IAxelarGateway } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGateway.sol';
-import { IAxelarGasService } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGasService.sol';
-import { StringToAddress, AddressToString } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/libs/AddressString.sol';
-
+pragma solidity 0.8.21;
+import {AxelarExecutable} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/executable/AxelarExecutable.sol";
+import {IAxelarGateway} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGateway.sol";
+import {IAxelarGasService} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGasService.sol";
 contract DeFiModule is AxelarExecutable {
-    using StringToAddress for string;
-    using AddressToString for address;
     IAxelarGasService public immutable gasService;
+    address[] public pinners;
+    string filecoinCID = "meow";
+    string destinationChain;
+    string destinationAddress;
+    error NotEnoughValueForGas();
+    // constructor(address gateway_, address gasService_) AxelarExecutable(gateway_) {
+    //     gasService = IAxelarGasService(gasService_);
+    // }
     
-    string filecoinCID; // The current frontends CID
-
     // https://docs.axelar.dev/resources/mainnet
-    // EDIT
-    constructor (
-        // address gateway,
-        // address gasService
-    ) AxelarExecutable(0xe432150cce91c13a887f7D836923d5597adD8E31) {
+    constructor() AxelarExecutable(0xe432150cce91c13a887f7D836923d5597adD8E31) {
         gasService = IAxelarGasService(0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6);
+        destinationChain = "filecoin-2";    // EDIT "filecoin"
+        destinationAddress = "0x1A8D7458E7dCB408611081D99D3c25324745212C";  // EDIT mainnet deployment
     }
-    
-    function distributeFees(
-        string calldata destinationChain,
-        string calldata contractAddress
-    ) external payable {
-        bytes memory payload = abi.encode(filecoinCID);
-
+    function sendMessage() external payable {
         if (msg.value == 0)  revert NotEnoughValueForGas();
-
-        gasService.payNativeGasForContractCall{ value: msg.value }(
+        bytes memory payload = abi.encode(filecoinCID);
+        gasService.payNativeGasForContractCall{value: msg.value} (
             address(this),
-            "filecoin-2", // filecoin EDIT
-            "0x0000000000000000000000000000000000000000",  // filecoinPindepdence Contract EDIT
+            destinationChain,
+            destinationAddress,
             payload,
             msg.sender
         );
-
-        gateway.callContract(destinationChain, contractAddress, payload);
+        gateway.callContract(destinationChain,destinationAddress,payload);
     }
-
     function _execute(
         string calldata sourceChain,
         string calldata sourceAddress,
-        bytes calldata payload
+        bytes calldata payload_
     ) internal override {
-        uint totalBalance = address(this).balance;
-        if (totalBalance == 0)  revert NoFeesToDistribute();
-
-        address[] memory pinners = abi.decode(payload, (address[]));
-        uint amountPerPinner = totalBalance / pinners.length;
-
-        for (uint i = 0; i < pinners.length; i++) {
-            (bool success, ) = payable(pinners[i]).call{value: amountPerPinner}("");
-            require(success, "Transfer failed");
-        }
+        pinners = abi.decode(payload_, (address[]));
     }
-
-    function addFees() external payable {}
-
     // admin function
     function changeCID(string calldata _filecoinCID) external {
         filecoinCID = _filecoinCID;
     }
 
-    error NotEnoughValueForGas();
-    error NoFeesToDistribute();
-    
-    receive() external payable {
+    function payFees() public {
+        uint totalBalance = address(this).balance;
+        uint amountPerPinner = totalBalance / pinners.length;
+        for (uint i = 0; i < pinners.length; i++) {
+            (bool success, ) = payable(pinners[i]).call{value: amountPerPinner}("");
+            require(success, "Transfer failed");
+        }
     }
-
+    function push(address _m) public {
+        pinners.push(_m);
+    }
+    function addFees() external payable {}
+    receive() external payable {}
 }
