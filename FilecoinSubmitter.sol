@@ -22,8 +22,13 @@ contract FilecoinSubmitter is AxelarExecutable {
         bytes calldata payload_
     ) internal override {
         string memory cid = abi.decode(payload_, (string));
-        uint txId = dealStatus.submit(payload_);     
-        emit cidSubmitted(cid, txId);
+        submitCID(cid);
+    }
+
+    function submitCID(string memory _cid) public {
+        bytes memory bytesCid = abi.encode(_cid);
+        uint txId = dealStatus.submit(bytesCid);
+        emit cidSubmitted(_cid, txId);
     }
 
 }
