@@ -4,11 +4,10 @@ import {AxelarExecutable} from "@axelar-network/axelar-gmp-sdk-solidity/contract
 import {IAxelarGateway} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGateway.sol";
 import {IAxelarGasService} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGasService.sol";
 
-contract DeFiModule is AxelarExecutable {
+contract PindependenceHandler is AxelarExecutable {
     IAxelarGasService public immutable gasService;
 
-    address[] public pinners;
-
+    mapping(string => address[]) public pinners;
     mapping(string => uint) public feeForCid;
 
     string destinationChain;
@@ -69,7 +68,7 @@ contract DeFiModule is AxelarExecutable {
         bytes calldata payload_
     ) internal override {
         string memory cid;
-        (pinners, cid) = abi.decode(payload_, (address[], string));
+        (pinners[cid], cid) = abi.decode(payload_, (address[], string));
         payRewards(cid);
     }
 
@@ -78,10 +77,10 @@ contract DeFiModule is AxelarExecutable {
         uint amountPerPinner = totalBalance / pinners.length;
 
         for (uint i = 0; i < pinners.length; i++) {
-            (bool success, ) = payable(pinners[i]).call{value: amountPerPinner}("");
+            (bool success, ) = payable(pinners[cid][i]).call{value: amountPerPinner}("");
             require(success, "Transfer failed");
         }
-        emit RewardsProcessingFinished(cid, totalBalance, pinners.length);
+        emit RewardsProcessingFinished(cid, totalBalance, pinners[cid].length);
     }
 
     function addFees(string calldata cid) external payable {
