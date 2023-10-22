@@ -18,19 +18,17 @@ contract DeFiModule is AxelarExecutable {
     event RewardsProcessingStarted (string _cid);
     event RewardsProcessingFinished (string indexed _cid, uint rewardAmount, uint providersRewarded);
     event RewardsAdded(string _cid, uint rewardAmount);
-    // event CidSubmitted (string _cid);
+    event CidSubmitted (string _cid);
 
     error NotEnoughValueForGas();
 
     // https://docs.axelar.dev/resources/mainnet
     constructor(address gateway_, address gasService_) AxelarExecutable(gateway_) {
         gasService = IAxelarGasService(gasService_);
-    // constructor() AxelarExecutable(0xe432150cce91c13a887f7D836923d5597adD8E31) {
-    //     gasService = IAxelarGasService(0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6);
 
         destinationChain = "filecoin-2";    // EDIT "filecoin"
-        destinationCheckerAddress = "0x0000000000000000000000000000000000000000";  // EDIT mainnet deployment
-        destinationSubmitterAddress = "0x0000000000000000000000000000000000000000";
+        destinationCheckerAddress = "0xe4De066Cdada7702885CEf394031bC05e9b9D0Ac";  // EDIT mainnet deployment
+        destinationSubmitterAddress = "0x0EA396A60CbcA1158cd3ACB0bf1a85fa7A6E193D";
     }
 
     function processRewards(string calldata cid) public payable {
@@ -49,21 +47,21 @@ contract DeFiModule is AxelarExecutable {
         emit RewardsProcessingStarted(cid);
     }
 
-    // function submitCid(string calldata cid) external payable {
-    //     if (msg.value == 0)  revert NotEnoughValueForGas();
+    function submitCid(string calldata cid) external payable {
+        if (msg.value == 0)  revert NotEnoughValueForGas();
         
-    //     bytes memory payload = abi.encode(cid);
-    //     gasService.payNativeGasForContractCall{value: msg.value} (
-    //         address(this),
-    //         destinationChain,
-    //         destinationSubmitterAddress,
-    //         payload,
-    //         msg.sender
-    //     );
+        bytes memory payload = abi.encode(cid);
+        gasService.payNativeGasForContractCall{value: msg.value} (
+            address(this),
+            destinationChain,
+            destinationSubmitterAddress,
+            payload,
+            msg.sender
+        );
 
-    //     gateway.callContract(destinationChain,destinationSubmitterAddress,payload);
-    //     emit CidSubmitted(cid);
-    // }
+        gateway.callContract(destinationChain,destinationSubmitterAddress,payload);
+        emit CidSubmitted(cid);
+    }
 
     function _execute(
         string calldata sourceChain,
