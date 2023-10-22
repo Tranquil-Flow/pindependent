@@ -74,9 +74,9 @@ contract PindependenceHandler is AxelarExecutable {
 
     function payRewards(string memory cid) internal {
         uint totalBalance = feeForCid[cid];
-        uint amountPerPinner = totalBalance / pinners.length;
+        uint amountPerPinner = totalBalance / pinners[cid].length;
 
-        for (uint i = 0; i < pinners.length; i++) {
+        for (uint i = 0; i < pinners[cid].length; i++) {
             (bool success, ) = payable(pinners[cid][i]).call{value: amountPerPinner}("");
             require(success, "Transfer failed");
         }
