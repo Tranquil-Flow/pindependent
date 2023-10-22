@@ -8,10 +8,17 @@ contract DeFiModule is AxelarExecutable {
     IAxelarGasService public immutable gasService;
 
     address[] public pinners;
-    string filecoinCID;
+
+    mapping(string => uint) public feeForCid;
 
     string destinationChain;
-    string destinationAddress;
+    string destinationCheckerAddress;
+    string destinationSubmitterAddress;
+
+    event RewardsProcessingStarted (string _cid);
+    event RewardsProcessingFinished (string indexed _cid, uint rewardAmount, uint providersRewarded);
+    event RewardsAdded(string _cid, uint rewardAmount);
+    // event CidSubmitted (string _cid);
 
     error NotEnoughValueForGas();
 
@@ -22,49 +29,67 @@ contract DeFiModule is AxelarExecutable {
     //     gasService = IAxelarGasService(0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6);
 
         destinationChain = "filecoin-2";    // EDIT "filecoin"
-        destinationAddress = "0x1A8D7458E7dCB408611081D99D3c25324745212C";  // EDIT mainnet deployment
+        destinationCheckerAddress = "0x0000000000000000000000000000000000000000";  // EDIT mainnet deployment
+        destinationSubmitterAddress = "0x0000000000000000000000000000000000000000";
     }
 
-    function sendMessage(string calldata cid) external payable {
+    function processRewards(string calldata cid) public payable {
         if (msg.value == 0)  revert NotEnoughValueForGas();
-        bytes memory payload = abi.encode(cid);
 
+        bytes memory payload = abi.encode(cid);
         gasService.payNativeGasForContractCall{value: msg.value} (
             address(this),
             destinationChain,
-            destinationAddress,
+            destinationCheckerAddress,
             payload,
             msg.sender
         );
 
-        gateway.callContract(destinationChain,destinationAddress,payload);
+        gateway.callContract(destinationChain,destinationCheckerAddress,payload);
+        emit RewardsProcessingStarted(cid);
     }
+
+    // function submitCid(string calldata cid) external payable {
+    //     if (msg.value == 0)  revert NotEnoughValueForGas();
+        
+    //     bytes memory payload = abi.encode(cid);
+    //     gasService.payNativeGasForContractCall{value: msg.value} (
+    //         address(this),
+    //         destinationChain,
+    //         destinationSubmitterAddress,
+    //         payload,
+    //         msg.sender
+    //     );
+
+    //     gateway.callContract(destinationChain,destinationSubmitterAddress,payload);
+    //     emit CidSubmitted(cid);
+    // }
 
     function _execute(
         string calldata sourceChain,
         string calldata sourceAddress,
         bytes calldata payload_
     ) internal override {
-        pinners = abi.decode(payload_, (address[]));
-        payFees();
+        string memory cid;
+        (pinners, cid) = abi.decode(payload_, (address[], string));
+        payRewards(cid);
     }
 
-    function payFees() public {
-        uint totalBalance = address(this).balance;
+    function payRewards(string memory cid) internal {
+        uint totalBalance = feeForCid[cid];
         uint amountPerPinner = totalBalance / pinners.length;
 
         for (uint i = 0; i < pinners.length; i++) {
             (bool success, ) = payable(pinners[i]).call{value: amountPerPinner}("");
             require(success, "Transfer failed");
         }
+        emit RewardsProcessingFinished(cid, totalBalance, pinners.length);
     }
 
-    // admin function
-    function changeCID(string calldata _filecoinCID) external {
-        filecoinCID = _filecoinCID;
+    function addFees(string calldata cid) external payable {
+        feeForCid[cid] += msg.value;
+        emit RewardsAdded(cid, msg.value);
     }
-
-    function addFees() external payable {}
 
     receive() external payable {}
 }

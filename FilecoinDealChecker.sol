@@ -3,86 +3,62 @@ pragma solidity 0.8.21;
 import {AxelarExecutable} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/executable/AxelarExecutable.sol";
 import {IAxelarGateway} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGateway.sol";
 import {IAxelarGasService} from "@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGasService.sol";
+import {MarketAPI} from "@zondax/filecoin-solidity/contracts/v0.8/MarketAPI.sol";
 
-contract DeFiModule is AxelarExecutable {
+interface IDealStatus {
+    function submit(bytes calldata _cid) external returns (uint256);
+    function getActiveDeals(bytes calldata _cid) external returns (FilecoinDealChecker.Deal[] memory);
+}
+
+contract FilecoinDealChecker is AxelarExecutable {
     IAxelarGasService public immutable gasService;
+    IDealStatus public dealStatus;
 
+    mapping(string => address[]) public pinnerList;
     address[] public pinners;
-    string filecoinCID;    // EDIT remove init
-
-    string destinationChain;
-    string destinationCheckerAddress;
-    string destinationSubmitterAddress;
-
-    error NotEnoughValueForGas();
-
-    // https://docs.axelar.dev/resources/mainnet
-    constructor(address gateway_, address gasService_) AxelarExecutable(gateway_) {
-        gasService = IAxelarGasService(gasService_);
-    // constructor() AxelarExecutable(0xe432150cce91c13a887f7D836923d5597adD8E31) {
-    //     gasService = IAxelarGasService(0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6);
-
-        destinationChain = "filecoin-2";    // EDIT "filecoin"
-        destinationCheckerAddress = "0x0000000000000000000000000000000000000000";  // EDIT mainnet deployment
-        destinationSubmitterAddress = "0x0000000000000000000000000000000000000000";
+    string public cid;
+    struct Deal {
+        uint64 dealId;
+        uint64 minerId;
     }
-
-    function processFees(string calldata cid) external payable {
-        if (msg.value == 0)  revert NotEnoughValueForGas();
-
-        bytes memory payload = abi.encode(cid);
-        gasService.payNativeGasForContractCall{value: msg.value} (
-            address(this),
-            destinationChain,
-            destinationCheckerAddress,
-            payload,
-            msg.sender
-        );
-
-        gateway.callContract(destinationChain,destinationCheckerAddress,payload);
+    
+    event cidSubmitted(string indexed _cid, uint _txId);
+    
+    constructor() AxelarExecutable(0x999117D44220F33e0441fbAb2A5aDB8FF485c54D) {    // 0xe432150cce91c13a887f7D836923d5597adD8E31   EDIT mainnet
+        gasService = IAxelarGasService(0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6); //  0x2d5d7d31F671F86C782533cc367F14109a082712  EDIT mainnet
+        dealStatus = IDealStatus(0x6ec8722e6543fB5976a547434c8644b51e24785b);   // Lighthouse SC on Filecoin Calibration Testnet
     }
-
-    function submitCid(string calldata cid) external payable {
-        if (msg.value == 0)  revert NotEnoughValueForGas();
-        
-        bytes memory payload = abi.encode(cid);
-        gasService.payNativeGasForContractCall{value: msg.value} (
-            address(this),
-            destinationChain,
-            destinationSubmitterAddress,
-            payload,
-            msg.sender
-        );
-
-        gateway.callContract(destinationChain,destinationSubmitterAddress,payload);
-    }
-
+    
     function _execute(
         string calldata sourceChain,
         string calldata sourceAddress,
         bytes calldata payload_
     ) internal override {
-        pinners = abi.decode(payload_, (address[]));
-        payFees();
-    }
-
-    function payFees() public {
-        uint totalBalance = address(this).balance;
-        uint amountPerPinner = totalBalance / pinners.length;
-
-        for (uint i = 0; i < pinners.length; i++) {
-            (bool success, ) = payable(pinners[i]).call{value: amountPerPinner}("");
-            require(success, "Transfer failed");
+        cid = abi.decode(payload_, (string));
+        bytes memory _cid = abi.encode(cid);
+        Deal[] memory deals = dealStatus.getActiveDeals(_cid);
+        for (uint256 i = 0; i < deals.length; i++) {
+            uint64 dealId = deals[i].dealId;
+            
+            // get the filecoin address of the pinner
+            uint64 provider = MarketAPI.getDealProvider(dealId);
+            
+            // convert provider number to ethereum address
+            address pinner = uint64ToAddress(provider);
+            // add to list of pinners
+            pinnerList[cid].push(pinner);
         }
+        bytes memory payload = abi.encode(pinnerList[cid], cid);        
+        gateway.callContract(sourceChain,sourceAddress,payload);
     }
 
-    // admin function
-    function changeCID(string calldata _filecoinCID) external {
-        filecoinCID = _filecoinCID;
+    function uint64ToAddress(uint64 value) public pure returns (address) {
+        return address(uint160(value));
     }
 
-    function addFees() external payable {}
-
-    receive() external payable {}
-    
+    function submitCID(string memory _cid) public {
+        bytes memory bytesCid = abi.encode(_cid);
+        uint txId = dealStatus.submit(bytesCid);
+        emit cidSubmitted(_cid, txId);
+    }
 }
